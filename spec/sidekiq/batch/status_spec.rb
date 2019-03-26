@@ -34,8 +34,8 @@ describe Sidekiq::Batch::Status do
     end
 
     context 'when more than 0' do
-      before { batch.increment_job_queue(bid) }
-      before { Sidekiq::Batch.process_failed_job(bid, 'FAILEDID') }
+      before { batch.register_new_job(bid) }
+      before { batch.process_job(:failed, 'FAILEDID') }
 
       it 'returns failed jobs' do
         expect(subject.failures).to eq(1)
@@ -51,7 +51,7 @@ describe Sidekiq::Batch::Status do
     end
 
     context 'when with error' do
-      before { Sidekiq::Batch.process_failed_job(bid, 'jid123') }
+      before { Sidekiq::Batch.new(bid).process_job(:failed, 'jid123') }
 
       it 'returns array with failed jids' do
         expect(subject.failure_info).to eq(['jid123'])
@@ -77,7 +77,16 @@ describe Sidekiq::Batch::Status do
 
   describe '#data' do
     it 'returns batch description' do
-      expect(subject.data).to eq(total: 0, failures: 0, pending: 0, created_at: nil, complete: false, failure_info: [], parent_bid: nil)
+      expect(subject.data).to eq(total: 0,
+                                 failures: 0,
+                                 pending: 0,
+                                 created_at: nil,
+                                 complete: true,
+                                 failure_info: [],
+                                 parent_bid: nil,
+                                 total_children: 0,
+                                 pending_children: 0,
+                                 failed_children: 0)
     end
   end
 

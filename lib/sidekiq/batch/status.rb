@@ -8,7 +8,7 @@ module Sidekiq
       end
 
       def join
-        raise "Not supported"
+        raise 'Not supported'
       end
 
       def pending
@@ -28,7 +28,7 @@ module Sidekiq
       end
 
       def parent_bid
-        Sidekiq.redis { |r| r.hget("BID-#{bid}", "parent_bid") }
+        Sidekiq.redis { |r| r.hget("BID-#{bid}", 'parent_bid') }
       end
 
       def failure_info
@@ -36,11 +36,19 @@ module Sidekiq
       end
 
       def complete?
-        'true' == Sidekiq.redis { |r| r.hget("BID-#{bid}", 'complete') }
+        pending.zero? && pending_children.zero?
       end
 
-      def child_count
-        Sidekiq.redis { |r| r.hget("BID-#{bid}", 'children') }.to_i
+      def pending_children
+        Sidekiq.redis { |r| r.hget("BID-#{bid}", 'children_pending') }.to_i
+      end
+
+      def failed_children
+        Sidekiq.redis { |r| r.hget("BID-#{bid}", 'children_failed') }.to_i
+      end
+
+      def total_children
+        Sidekiq.redis { |r| r.hget("BID-#{bid}", 'children_total') }.to_i
       end
 
       def data
@@ -51,7 +59,10 @@ module Sidekiq
           created_at: created_at,
           complete: complete?,
           failure_info: failure_info,
-          parent_bid: parent_bid
+          parent_bid: parent_bid,
+          total_children: total_children,
+          pending_children: pending_children,
+          failed_children: failed_children
         }
       end
     end

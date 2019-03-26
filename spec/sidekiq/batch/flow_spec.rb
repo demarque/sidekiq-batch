@@ -75,10 +75,10 @@ describe 'Batch flow' do
       end
 
       expect(jids.size).to eq(4)
-      expect(Sidekiq::Batch::Status.new(parent).child_count).to eq(2)
+      expect(Sidekiq::Batch::Status.new(parent).total_children).to eq(2)
       children.each do |kid|
           status = Sidekiq::Batch::Status.new(kid)
-          expect(status.child_count).to eq(0)
+          expect(status.total_children).to eq(0)
           expect(status.pending).to eq(1)
           expect(status.parent_bid).to eq(parent)
       end

@@ -5,8 +5,6 @@ describe Sidekiq::Batch::Middleware do
     context 'when without batch' do
       it 'just yields' do
         yielded = false
-        expect(Sidekiq::Batch).not_to receive(:process_successful_job)
-        expect(Sidekiq::Batch).not_to receive(:process_failed_job)
         subject.call(nil, {}, nil) { yielded = true }
         expect(yielded).to be_truthy
       end
@@ -22,16 +20,16 @@ describe Sidekiq::Batch::Middleware do
           expect(yielded).to be_truthy
         end
 
-        it 'calls process_successful_job' do
-          expect(Sidekiq::Batch).to receive(:process_successful_job).with(bid, nil)
+        it 'calls process_job with success event' do
+          expect_any_instance_of(Sidekiq::Batch).to receive(:process_job).with(:successful, nil)
           subject.call(nil, { 'bid' => bid }, nil) {}
         end
       end
 
       context 'when failed' do
-        it 'calls process_failed_job and reraises exception' do
+        it 'calls process_job with failed event and reraises exception' do
           reraised = false
-          expect(Sidekiq::Batch).to receive(:process_failed_job)
+          expect_any_instance_of(Sidekiq::Batch).to receive(:process_job).with(:failed, nil)
           begin
             subject.call(nil, { 'bid' => bid }, nil) { raise 'ERR' }
           rescue
@@ -47,7 +45,7 @@ describe Sidekiq::Batch::Middleware do
     context 'when without batch' do
       it 'just yields' do
         yielded = false
-        expect(Sidekiq::Batch).not_to receive(:increment_job_queue)
+        expect(Sidekiq::Batch).not_to receive(:register_new_job)
         subject.call(nil, {}, nil) { yielded = true }
         expect(yielded).to be_truthy
       end
@@ -56,7 +54,7 @@ describe Sidekiq::Batch::Middleware do
     context 'when in batch' do
       let(:bid) { 'SAMPLEBID' }
       let(:jid) { 'SAMPLEJID' }
-      before { Thread.current[:batch] = Sidekiq::Batch.new(bid) }
+      before { Thread.current[:current_batch] = Sidekiq::Batch.new(bid) }
 
       it 'yields' do
         yielded = false
@@ -64,15 +62,10 @@ describe Sidekiq::Batch::Middleware do
         expect(yielded).to be_truthy
       end
 
-      it 'increments job queue' do
-        # expect(Sidekiq::Batch).to receive(:increment_job_queue).with(bid)
-        # subject.call(nil, { 'jid' => jid }, nil) {}
-      end
-
       it 'assigns bid to msg' do
         msg = { 'jid' => jid }
         subject.call(nil, msg, nil) {}
-        expect(msg[:bid]).to eq(bid)
+        expect(msg['bid']).to eq(bid)
       end
     end
   end
