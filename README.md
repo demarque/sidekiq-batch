@@ -14,6 +14,9 @@
 
 Simple Sidekiq Batch Job implementation.
 
+## Requirements
+Ruby >= 2.3
+
 ## Installation
 
 Add this line to your application's Gemfile:
@@ -34,10 +37,17 @@ Or install it yourself as:
 
 Sidekiq Batch is drop-in replacement for the API from Sidekiq PRO. See https://github.com/mperham/sidekiq/wiki/Batches for usage.
 
+## Notes on behavior
+* Callbacks are run in serial: first the :complete which then calls the :success callback, if conditions are met.
+* Both callbacks (:complete and :success) always run for each batch in this order, even if there is no custom callback methods to perform. This is to ensure proper callback chaining and consistency with nested batches (child batch callback run before parent callbacks).
+* Callbacks handle parent child counts and the trigger of the parent's callbacks, in a recursive way.
+* Parent batch only knows of its direct children (only their counts: total, pending, failed). Similarly, a batch only knows about its direct parent.
+* Job counts and child counts are batch specific: they aren't propagated through the parents (ie: incrementing job counts in a batch doesn't increment its parent job counts)
+* Completion of a batch depends on its own pending jobs and the completion of its children.
+
 ## Contributing
 
 Bug reports and pull requests are welcome on GitHub at https://github.com/breamware/sidekiq-batch.
-
 
 ## License
 
