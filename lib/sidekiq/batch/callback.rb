@@ -9,6 +9,8 @@ module Sidekiq
         def perform(clazz, event, opts, bid, parent_bid)
           return unless %w[success complete].include?(event)
 
+          Sidekiq.logger.info "running #{event} callback for batch #{bid}"
+
           # Custom callback
           clazz, method = clazz.to_s.split('#')
           if clazz
