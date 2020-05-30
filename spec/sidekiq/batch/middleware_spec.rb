@@ -54,7 +54,7 @@ describe Sidekiq::Batch::Middleware do
     context 'when in batch' do
       let(:bid) { 'SAMPLEBID' }
       let(:jid) { 'SAMPLEJID' }
-      before { Thread.current[:current_batch] = Sidekiq::Batch.new(bid) }
+      before { Thread.current[:batch] = Sidekiq::Batch.new(bid) }
 
       it 'yields' do
         yielded = false

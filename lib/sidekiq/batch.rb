@@ -49,8 +49,10 @@ module Sidekiq
     def jobs
       raise NoBlockGivenError unless block_given?
 
+      Thread.current[:add_to_batch] = true
+
       # The batch can be nested into another one
-      parent = Thread.current[:current_batch]
+      parent = Thread.current[:batch]
       parent_bid = parent&.bid
 
       if @new_batch
@@ -67,10 +69,11 @@ module Sidekiq
 
       begin
         # set the current batch, so that enqueued jobs can be linked to this batch
-        Thread.current[:current_batch] = self
+        Thread.current[:batch] = self
         yield
       ensure
-        Thread.current[:current_batch] = parent
+        Thread.current[:add_to_batch] = false
+        Thread.current[:batch] = parent
       end
 
       @ready_to_queue

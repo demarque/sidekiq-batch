@@ -70,7 +70,7 @@ describe Sidekiq::Batch do
     it 'sets Thread.current bid' do
       batch = Sidekiq::Batch.new
       batch.jobs do
-        expect(Thread.current[:current_batch]).to eq(batch)
+        expect(Thread.current[:batch]).to eq(batch)
       end
     end
   end

@@ -5,7 +5,7 @@ module Sidekiq
     module Middleware
       class ClientMiddleware
         def call(_worker, msg, _queue, _redis_pool = nil)
-          if (batch = Thread.current[:current_batch])
+          if Thread.current[:add_to_batch] && (batch = Thread.current[:batch])
             msg['bid'] = batch.bid
             batch.register_new_job(msg['jid'])
           end
@@ -21,7 +21,6 @@ module Sidekiq
               # for a job to have access to its batch when running
               Thread.current[:batch] = batch
               yield
-              Thread.current[:batch] = nil
               batch.process_job(:successful, msg['jid'])
             rescue
               batch.process_job(:failed, msg['jid'])
