@@ -39,9 +39,9 @@ module Sidekiq
 
       callback_key = callback_key_for(event)
       Sidekiq.redis do |r|
-        r.multi do
-          r.sadd(callback_key, JSON.unparse({ callback: callback, opts: options }))
-          r.expire(callback_key, BID_EXPIRE_TTL)
+        r.multi do |multi|
+          multi.sadd(callback_key, JSON.unparse({ callback: callback, opts: options }))
+          multi.expire(callback_key, BID_EXPIRE_TTL)
         end
       end
     end
@@ -57,10 +57,10 @@ module Sidekiq
 
       if @new_batch
         Sidekiq.redis do |r|
-          r.multi do
-            register_batch(parent_bid, r)
+          r.multi do |multi|
+            register_batch(parent_bid, multi)
             # Only register a new batch as child
-            increment_parent_children(parent_bid, r) if parent_bid
+            increment_parent_children(parent_bid, multi) if parent_bid
           end
         end
       end
@@ -83,13 +83,13 @@ module Sidekiq
       @ready_to_queue << jid
 
       Sidekiq.redis do |r|
-        r.multi do
-          r.hincrby(@bidkey, 'pending', 1)
-          r.hincrby(@bidkey, 'total', 1)
-          r.expire(@bidkey, BID_EXPIRE_TTL)
+        r.multi do |multi|
+          multi.hincrby(@bidkey, 'pending', 1)
+          multi.hincrby(@bidkey, 'total', 1)
+          multi.expire(@bidkey, BID_EXPIRE_TTL)
 
-          r.sadd("#{@bidkey}-jids", jid)
-          r.expire("#{@bidkey}-jids", BID_EXPIRE_TTL)
+          multi.sadd("#{@bidkey}-jids", jid)
+          multi.expire("#{@bidkey}-jids", BID_EXPIRE_TTL)
         end
       end
     end
@@ -122,19 +122,19 @@ module Sidekiq
     # as it has the responsability of triggering the success callback.
     def process_job(job_state, jid)
       pending, children_pending = Sidekiq.redis do |r|
-        r.multi do
-          r.hincrby(@bidkey, 'pending', -1)
-          r.hincrby(@bidkey, 'children_pending', 0)
-          r.expire(@bidkey, BID_EXPIRE_TTL)
+        r.multi do |multi|
+          multi.hincrby(@bidkey, 'pending', -1)
+          multi.hincrby(@bidkey, 'children_pending', 0)
+          multi.expire(@bidkey, BID_EXPIRE_TTL)
 
           if job_state == :successful
-            r.srem("#{@bidkey}-failed", jid)
+            multi.srem("#{@bidkey}-failed", jid)
           else
-            r.sadd("#{@bidkey}-failed", jid)
-            r.expire("#{@bidkey}-failed", BID_EXPIRE_TTL)
+            multi.sadd("#{@bidkey}-failed", jid)
+            multi.expire("#{@bidkey}-failed", BID_EXPIRE_TTL)
           end
 
-          r.srem("#{@bidkey}-jids", jid)
+          multi.srem("#{@bidkey}-jids", jid)
         end
       end
 
@@ -145,10 +145,10 @@ module Sidekiq
 
     def enqueue_callbacks(event)
       callbacks, queue, parent_bid = Sidekiq.redis do |r|
-        r.multi do
-          r.smembers(callback_key_for(event))
-          r.hget(@bidkey, 'callback_queue')
-          r.hget(@bidkey, 'parent_bid')
+        r.multi do |multi|
+          multi.smembers(callback_key_for(event))
+          multi.hget(@bidkey, 'callback_queue')
+          multi.hget(@bidkey, 'parent_bid')
         end
       end
 
@@ -165,9 +165,9 @@ module Sidekiq
 
     def persist_bid_attr(attribute, value)
       Sidekiq.redis do |r|
-        r.multi do
-          r.hset(@bidkey, attribute, value)
-          r.expire(@bidkey, BID_EXPIRE_TTL)
+        r.multi do |multi|
+          multi.hset(@bidkey, attribute, value)
+          multi.expire(@bidkey, BID_EXPIRE_TTL)
         end
       end
     end
@@ -196,7 +196,7 @@ module Sidekiq
 
       callbacks.reduce([]) do |memo, jcb|
         cb = Sidekiq.load_json(jcb)
-        memo << [cb['callback'], event, cb['opts'], @bid, parent_bid]
+        memo << [cb['callback'].to_s, event.to_s, cb['opts'].as_json, @bid, parent_bid]
       end
     end
   end

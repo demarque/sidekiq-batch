@@ -35,14 +35,14 @@ module Sidekiq
           return unless parent_bid
 
           parent_pending, parent_children_pending = Sidekiq.redis do |r|
-            r.multi do
-              r.hincrby("BID-#{parent_bid}", 'pending', 0)
+            r.multi do |multi|
+              multi.hincrby("BID-#{parent_bid}", 'pending', 0)
               if failed.zero?
                 # let the success callback remove the current batch from its parent pending children
-                r.hincrby("BID-#{parent_bid}", 'children_pending', 0)
+                multi.hincrby("BID-#{parent_bid}", 'children_pending', 0)
               else
-                r.hincrby("BID-#{parent_bid}", 'children_pending', -1)
-                r.hincrby("BID-#{parent_bid}", 'children_failed', 1)
+                multi.hincrby("BID-#{parent_bid}", 'children_pending', -1)
+                multi.hincrby("BID-#{parent_bid}", 'children_failed', 1)
               end
             end
           end
@@ -58,9 +58,9 @@ module Sidekiq
           return unless parent_bid
 
           parent_pending, parent_children_pending = Sidekiq.redis do |r|
-            r.multi do
-              r.hincrby("BID-#{parent_bid}", 'pending', 0)
-              r.hincrby("BID-#{parent_bid}", 'children_pending', -1)
+            r.multi do |multi|
+              multi.hincrby("BID-#{parent_bid}", 'pending', 0)
+              multi.hincrby("BID-#{parent_bid}", 'children_pending', -1)
             end
           end
 
