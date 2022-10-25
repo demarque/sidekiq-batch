@@ -40,7 +40,7 @@ module Sidekiq
       callback_key = callback_key_for(event)
       Sidekiq.redis do |r|
         r.multi do |multi|
-          multi.sadd(callback_key, JSON.unparse({ callback: callback, opts: options }))
+          multi.sadd(callback_key, [JSON.unparse({ callback: callback, opts: options })])
           multi.expire(callback_key, BID_EXPIRE_TTL)
         end
       end
@@ -88,7 +88,7 @@ module Sidekiq
           multi.hincrby(@bidkey, 'total', 1)
           multi.expire(@bidkey, BID_EXPIRE_TTL)
 
-          multi.sadd("#{@bidkey}-jids", jid)
+          multi.sadd("#{@bidkey}-jids", [jid])
           multi.expire("#{@bidkey}-jids", BID_EXPIRE_TTL)
         end
       end
@@ -109,7 +109,7 @@ module Sidekiq
     end
 
     def valid?
-      valid = !Sidekiq.redis { |r| r.exists("invalidated-bid-#{bid}") }
+      valid = !Sidekiq.redis { |r| r.exists?("invalidated-bid-#{bid}") }
       parent_batch = parent
 
       valid && (!parent_batch || parent_batch.valid?)
@@ -128,13 +128,13 @@ module Sidekiq
           multi.expire(@bidkey, BID_EXPIRE_TTL)
 
           if job_state == :successful
-            multi.srem("#{@bidkey}-failed", jid)
+            multi.srem("#{@bidkey}-failed", [jid])
           else
-            multi.sadd("#{@bidkey}-failed", jid)
+            multi.sadd("#{@bidkey}-failed", [jid])
             multi.expire("#{@bidkey}-failed", BID_EXPIRE_TTL)
           end
 
-          multi.srem("#{@bidkey}-jids", jid)
+          multi.srem("#{@bidkey}-jids", [jid])
         end
       end
 
