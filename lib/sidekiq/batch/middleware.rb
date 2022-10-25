@@ -54,4 +54,4 @@ module Sidekiq
   end
 end
 
-Sidekiq::Batch::Middleware.configure
+#Sidekiq::Batch::Middleware.configure
