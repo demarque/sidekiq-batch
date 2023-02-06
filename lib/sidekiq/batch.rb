@@ -109,7 +109,7 @@ module Sidekiq
     end
 
     def valid?
-      valid = !Sidekiq.redis { |r| r.exists?("invalidated-bid-#{bid}") }
+      valid = Sidekiq.redis { |r| r.exists("invalidated-bid-#{bid}").zero? }
       parent_batch = parent
 
       valid && (!parent_batch || parent_batch.valid?)
