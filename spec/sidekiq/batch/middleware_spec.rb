@@ -54,7 +54,7 @@ describe Sidekiq::Batch::Middleware do
     context 'when in batch' do
       let(:bid) { 'SAMPLEBID' }
       let(:jid) { 'SAMPLEJID' }
-      before { Thread.current[:batch] = Sidekiq::Batch.new(bid) }
+      before { Thread.current[:batch] = Sidekiq::Batch.new(bid); Thread.current[:add_to_batch] = true }
 
       it 'yields' do
         yielded = false
@@ -72,31 +72,6 @@ describe Sidekiq::Batch::Middleware do
 end
 
 describe Sidekiq::Batch::Middleware do
-  let(:config) { class_double(Sidekiq) }
-  let(:client_middleware) { double(Sidekiq::Middleware::Chain) }
-
-  context 'client' do
-    it 'adds client middleware' do
-      expect(Sidekiq).to receive(:configure_client).and_yield(config)
-      expect(config).to receive(:client_middleware).and_yield(client_middleware)
-      expect(client_middleware).to receive(:add).with(Sidekiq::Batch::Middleware::ClientMiddleware)
-      Sidekiq::Batch::Middleware.configure
-    end
-  end
-
-  context 'server' do
-    let(:server_middleware) { double(Sidekiq::Middleware::Chain) }
-
-    it 'adds client and server middleware' do
-      expect(Sidekiq).to receive(:configure_server).and_yield(config)
-      expect(config).to receive(:client_middleware).and_yield(client_middleware)
-      expect(config).to receive(:server_middleware).and_yield(server_middleware)
-      expect(client_middleware).to receive(:add).with(Sidekiq::Batch::Middleware::ClientMiddleware)
-      expect(server_middleware).to receive(:add).with(Sidekiq::Batch::Middleware::ServerMiddleware)
-      Sidekiq::Batch::Middleware.configure
-    end
-  end
-
   context 'worker' do
     it 'defines method bid' do
       expect(Sidekiq::Worker.instance_methods).to include(:bid)

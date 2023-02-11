@@ -87,9 +87,6 @@ module Sidekiq
           multi.hincrby(@bidkey, 'pending', 1)
           multi.hincrby(@bidkey, 'total', 1)
           multi.expire(@bidkey, BID_EXPIRE_TTL)
-
-          multi.sadd("#{@bidkey}-jids", [jid])
-          multi.expire("#{@bidkey}-jids", BID_EXPIRE_TTL)
         end
       end
     end
@@ -109,7 +106,7 @@ module Sidekiq
     end
 
     def valid?
-      valid = Sidekiq.redis { |r| r.exists("invalidated-bid-#{bid}").zero? }
+      valid = Sidekiq.redis { |r| r.exists("invalidated-bid-#{bid}") }.zero?
       parent_batch = parent
 
       valid && (!parent_batch || parent_batch.valid?)
@@ -125,16 +122,8 @@ module Sidekiq
         r.multi do |multi|
           multi.hincrby(@bidkey, 'pending', -1)
           multi.hincrby(@bidkey, 'children_pending', 0)
+          multi.hincrby(@bidkey, 'failed', 1) if job_state != :successful
           multi.expire(@bidkey, BID_EXPIRE_TTL)
-
-          if job_state == :successful
-            multi.srem("#{@bidkey}-failed", [jid])
-          else
-            multi.sadd("#{@bidkey}-failed", [jid])
-            multi.expire("#{@bidkey}-failed", BID_EXPIRE_TTL)
-          end
-
-          multi.srem("#{@bidkey}-jids", [jid])
         end
       end
 
@@ -196,7 +185,7 @@ module Sidekiq
 
       callbacks.reduce([]) do |memo, jcb|
         cb = Sidekiq.load_json(jcb)
-        memo << [cb['callback'].to_s, event.to_s, cb['opts'].as_json, @bid, parent_bid]
+        memo << [cb['callback'].to_s, event.to_s, cb['opts'], @bid, parent_bid]
       end
     end
   end

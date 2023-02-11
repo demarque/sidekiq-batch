@@ -80,8 +80,7 @@ describe Sidekiq::Batch do
       include Sidekiq::Worker
 
       def perform
-        return unless valid_within_batch?
-        was_performed
+        was_performed if valid_within_batch?
       end
 
       def was_performed; end
@@ -107,51 +106,48 @@ describe Sidekiq::Batch do
       let(:job_of_child_1) { InvalidatableJob.new }
       let(:job_of_child_2) { InvalidatableJob.new }
 
-      before do
-        allow(job_of_parent).to receive(:was_performed)
-        allow(job_of_child_1).to receive(:was_performed)
-        allow(job_of_child_2).to receive(:was_performed)
+      context 'with parent batch is marked as invalidated' do
+        let(:batch_parent) { Sidekiq::Batch.new }
+
+        it 'invalidates all jobs' do
+          expect(job_of_parent).not_to receive(:was_performed)
+          expect(job_of_child_1).not_to receive(:was_performed)
+          expect(job_of_child_2).not_to receive(:was_performed)
+
+          batch_parent.invalidate_all
+          batch_parent.jobs do
+            [
+              job_of_parent.perform,
+              batch_child_1.jobs do
+                [
+                  job_of_child_1.perform,
+                  batch_child_2.jobs { job_of_child_2.perform }
+                ]
+              end
+            ]
+          end
+        end
       end
 
-      it 'invalidates all job if parent batch is marked as invalidated' do
-        batch_parent.invalidate_all
-        Thread.current[:batch] = batch_parent
-        batch_parent.jobs do
-          [
-            job_of_parent.perform,
-            batch_child_1.jobs do
-              [
-                job_of_child_1.perform,
-                batch_child_2.jobs { job_of_child_2.perform }
-              ]
-            end
-          ]
+      context 'with a child batch marked as invalidated' do
+        it 'invalidates only requested batch' do
+          expect(job_of_parent).to receive(:was_performed)
+          expect(job_of_child_1).to receive(:was_performed)
+          expect(job_of_child_2).not_to receive(:was_performed)
+
+          batch_child_2.invalidate_all
+          batch_parent.jobs do
+            [
+              job_of_parent.perform,
+              batch_child_1.jobs do
+                [
+                  job_of_child_1.perform,
+                  batch_child_2.jobs { job_of_child_2.perform }
+                ]
+              end
+            ]
+          end
         end
-
-        expect(job_of_parent).not_to have_received(:was_performed)
-        expect(job_of_child_1).not_to have_received(:was_performed)
-        expect(job_of_child_2).not_to have_received(:was_performed)
-      end
-
-      it 'invalidates only requested batch' do
-        batch_child_2.invalidate_all
-        Thread.current[:batch] = batch_parent
-        batch_parent.jobs do
-          [
-            job_of_parent.perform,
-            batch_child_1.jobs do
-              [
-                Thread.current[:batch] = batch_child_1,
-                job_of_child_1.perform,
-                batch_child_2.jobs { Thread.current[:batch] = batch_child_2; job_of_child_2.perform }
-              ]
-            end
-          ]
-        end
-
-        expect(job_of_parent).to have_received(:was_performed)
-        expect(job_of_child_1).to have_received(:was_performed)
-        expect(job_of_child_2).not_to have_received(:was_performed)
       end
     end
   end
@@ -173,8 +169,8 @@ describe Sidekiq::Batch do
       it 'add job to failed list' do
         batch.process_job(:failed, 'failed-job-id')
         batch.process_job(:failed, failed_jid)
-        failed = Sidekiq.redis { |r| r.smembers("BID-#{bid}-failed") }
-        expect(failed).to eq(['xxx', 'failed-job-id'])
+        failed = Sidekiq.redis { |r| r.hget("BID-#{bid}", 'failed') }.to_i
+        expect(failed).to eq(2)
       end
     end
   end
@@ -230,7 +226,7 @@ describe Sidekiq::Batch do
 
   describe '#enqueue_callbacks' do
     let(:callback) { double('callback') }
-    let(:event) { :complete }
+    let(:event) { 'complete' }
 
     context 'when already called' do
       it 'returns and does not enqueue callbacks' do

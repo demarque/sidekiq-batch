@@ -23,7 +23,7 @@ module Sidekiq
         end
 
         def complete(bid, parent_bid)
-          failed = Sidekiq.redis { |r| r.scard("BID-#{bid}-failed") }
+          failed = Sidekiq.redis { |r| r.hget("BID-#{bid}", 'failed') }.to_i
 
           if failed.zero?
             Batch.new(bid).enqueue_callbacks(:success)
@@ -73,7 +73,7 @@ module Sidekiq
           bid_key = "BID-#{bid}"
 
           Sidekiq.redis do |r|
-            r.del(bid_key, "#{bid_key}-callbacks-complete", "#{bid_key}-callbacks-success", "#{bid_key}-failed", "#{bid_key}-jids")
+            r.del(bid_key, "#{bid_key}-callbacks-complete", "#{bid_key}-callbacks-success")
           end
         end
       end

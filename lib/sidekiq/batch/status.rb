@@ -16,7 +16,7 @@ module Sidekiq
       end
 
       def failures
-        Sidekiq.redis { |r| r.scard("BID-#{bid}-failed") }.to_i
+        Sidekiq.redis { |r| r.hget("BID-#{bid}", 'failed') }.to_i
       end
 
       def created_at
@@ -29,10 +29,6 @@ module Sidekiq
 
       def parent_bid
         Sidekiq.redis { |r| r.hget("BID-#{bid}", 'parent_bid') }
-      end
-
-      def failure_info
-        Sidekiq.redis { |r| r.smembers("BID-#{bid}-failed") } || []
       end
 
       def complete?
@@ -58,7 +54,6 @@ module Sidekiq
           pending: pending,
           created_at: created_at,
           complete: complete?,
-          failure_info: failure_info,
           parent_bid: parent_bid,
           total_children: total_children,
           pending_children: pending_children,

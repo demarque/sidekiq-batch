@@ -43,23 +43,8 @@ describe Sidekiq::Batch::Status do
     end
   end
 
-  describe '#failure_info' do
-    context 'when not initalized' do
-      it 'returns empty array' do
-        expect(subject.failure_info).to eq([])
-      end
-    end
-
-    context 'when with error' do
-      before { Sidekiq::Batch.new(bid).process_job(:failed, 'jid123') }
-
-      it 'returns array with failed jids' do
-        expect(subject.failure_info).to eq(['jid123'])
-      end
-    end
-  end
-
   describe '#total' do
+    let(:bid) { 'BID2' }
     context 'when not initalized' do
       it 'returns 0 failed jobs' do
         expect(subject.total).to eq(0)
@@ -76,13 +61,13 @@ describe Sidekiq::Batch::Status do
   end
 
   describe '#data' do
+    let(:bid) { 'BID3' }
     it 'returns batch description' do
       expect(subject.data).to eq(total: 0,
                                  failures: 0,
                                  pending: 0,
                                  created_at: nil,
                                  complete: true,
-                                 failure_info: [],
                                  parent_bid: nil,
                                  total_children: 0,
                                  pending_children: 0,
