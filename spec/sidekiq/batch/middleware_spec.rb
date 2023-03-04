@@ -20,16 +20,16 @@ describe Sidekiq::Batch::Middleware do
           expect(yielded).to be_truthy
         end
 
-        it 'calls process_job with success event' do
-          expect_any_instance_of(Sidekiq::Batch).to receive(:process_job).with(:successful, nil)
+        it 'calls on_job_processed with success event' do
+          expect_any_instance_of(Sidekiq::Batch).to receive(:on_job_processed).with(:successful, nil)
           subject.call(nil, { 'bid' => bid }, nil) {}
         end
       end
 
       context 'when failed' do
-        it 'calls process_job with failed event and reraises exception' do
+        it 'calls on_job_processed with failed event and reraises exception' do
           reraised = false
-          expect_any_instance_of(Sidekiq::Batch).to receive(:process_job).with(:failed, nil)
+          expect_any_instance_of(Sidekiq::Batch).to receive(:on_job_processed).with(:failed, nil)
           begin
             subject.call(nil, { 'bid' => bid }, nil) { raise 'ERR' }
           rescue

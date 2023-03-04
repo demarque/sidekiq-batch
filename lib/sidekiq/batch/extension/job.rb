@@ -1,5 +1,5 @@
 module Sidekiq::Batch::Extension
-  module Worker
+  module Job
     def bid
       batch&.bid
     end

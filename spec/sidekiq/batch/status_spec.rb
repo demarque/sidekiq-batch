@@ -35,7 +35,7 @@ describe Sidekiq::Batch::Status do
 
     context 'when more than 0' do
       before { batch.register_new_job(bid) }
-      before { batch.process_job(:failed, 'FAILEDID') }
+      before { batch.on_job_processed(:failed, 'FAILEDID') }
 
       it 'returns failed jobs' do
         expect(subject.failures).to eq(1)

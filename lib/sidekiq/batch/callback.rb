@@ -1,15 +1,13 @@
 module Sidekiq
   class Batch
     module Callback
-      class Worker
-        include Sidekiq::Worker
-
-        DEFAULT_QUEUE = 'default'
+      class Job
+        include Sidekiq::Job
 
         def perform(clazz, event, opts, bid, parent_bid)
           return unless %w[success complete].include?(event)
 
-          Sidekiq.logger.info "running #{event} callback for batch #{bid}"
+          Sidekiq::Context.with(bid: bid) { Sidekiq.logger.info("running #{event} callback for batch #{bid}") }
 
           # Custom callback
           clazz, method = clazz.to_s.split('#')
@@ -19,62 +17,58 @@ module Sidekiq
           end
 
           # Trigger after custom callback has run, to manage next callbacks and parent batch
-          send(event.to_sym, bid, parent_bid)
+          send(event.to_sym, Batch.new(bid, parent_bid))
         end
 
-        def complete(bid, parent_bid)
-          failed = Sidekiq.redis { |r| r.hget("BID-#{bid}", 'failed') }.to_i
+        def complete(batch)
+          failed = Sidekiq.redis { |r| r.hget(batch.key, 'failed') }.to_i
 
           if failed.zero?
-            Batch.new(bid).enqueue_callbacks(:success)
+            batch.enqueue_callbacks(:success)
           else
             # nothing more to do with the batch
-            clean_redis(bid)
+            batch.clean
           end
 
-          return unless parent_bid
+          parent_batch = batch.parent
 
-          parent_pending, parent_children_pending = Sidekiq.redis do |r|
+          return unless parent_batch
+
+          parent_ready, parent_pending, parent_children_pending = Sidekiq.redis do |r|
             r.multi do |multi|
-              multi.hincrby("BID-#{parent_bid}", 'pending', 0)
+              multi.hget(parent_batch.key, 'ready')
+              multi.hincrby(parent_batch.key, 'pending', 0)
               if failed.zero?
                 # let the success callback remove the current batch from its parent pending children
-                multi.hincrby("BID-#{parent_bid}", 'children_pending', 0)
+                multi.hincrby(parent_batch.key, 'children_pending', 0)
               else
-                multi.hincrby("BID-#{parent_bid}", 'children_pending', -1)
-                multi.hincrby("BID-#{parent_bid}", 'children_failed', 1)
+                multi.hincrby(parent_batch.key, 'children_pending', -1)
+                multi.hincrby(parent_batch.key, 'children_failed', 1)
               end
             end
           end
 
           # The success callback of the current batch could add more jobs to the parent batch,
           # so let it handle its parent callbacks when it runs.
-          Batch.new(parent_bid).enqueue_callbacks(:complete) if !failed.zero? && parent_pending.zero? && parent_children_pending.zero?
+          parent_batch.enqueue_callbacks(:complete) if !failed.zero? && parent_ready.to_i.zero? && parent_pending.zero? && parent_children_pending.zero?
         end
 
-        def success(bid, parent_bid)
-          clean_redis(bid)
+        def success(batch)
+          batch.clean
 
-          return unless parent_bid
+          parent_batch = batch.parent
 
-          parent_pending, parent_children_pending = Sidekiq.redis do |r|
+          return unless parent_batch
+
+          parent_ready, parent_pending, parent_children_pending = Sidekiq.redis do |r|
             r.multi do |multi|
-              multi.hincrby("BID-#{parent_bid}", 'pending', 0)
-              multi.hincrby("BID-#{parent_bid}", 'children_pending', -1)
+              multi.hget(parent_batch.key, 'ready')
+              multi.hincrby(parent_batch.key, 'pending', 0)
+              multi.hincrby(parent_batch.key, 'children_pending', -1)
             end
           end
 
-          Batch.new(parent_bid).enqueue_callbacks(:complete) if parent_pending.zero? && parent_children_pending.zero?
-        end
-
-        private
-
-        def clean_redis(bid)
-          bid_key = "BID-#{bid}"
-
-          Sidekiq.redis do |r|
-            r.del(bid_key, "#{bid_key}-callbacks-complete", "#{bid_key}-callbacks-success")
-          end
+          parent_batch.enqueue_callbacks(:complete) if parent_ready.to_i == 1 && parent_pending.zero? && parent_children_pending.zero?
         end
       end
     end

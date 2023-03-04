@@ -22,7 +22,6 @@ describe 'Batch flow' do
   context 'when handling a batch' do
     let(:batch) { Sidekiq::Batch.new }
     before { batch.on(:complete, SampleCallback, :id => 42) }
-    before { batch.description = 'describing the batch' }
     let(:status) { Sidekiq::Batch::Status.new(batch.bid) }
     let(:jids) { batch.jobs do 3.times do TestWorker.perform_async end end }
     let(:queue) { Sidekiq::Queue.new }
@@ -31,7 +30,6 @@ describe 'Batch flow' do
       expect(jids.size).to eq(3)
 
       expect(batch.bid).not_to be_nil
-      expect(batch.description).to eq('describing the batch')
 
       expect(status.total).to eq(3)
       expect(status.pending).to eq(3)

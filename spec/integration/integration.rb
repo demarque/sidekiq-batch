@@ -37,7 +37,6 @@ class MyCallback
 end
 
 batch = Sidekiq::Batch.new
-batch.description = 'Test batch'
 batch.callback_queue = :default
 batch.on(:success, 'MyCallback#on_success', to: 'success@gmail.com')
 batch.on(:success, 'MyCallback#multi', to: 'success@gmail.com')
