@@ -56,7 +56,7 @@ module Sidekiq
     def on(event, callback, options = {})
       return unless %w[success complete].include?(event.to_s)
 
-      @callbacks[callback_key_for(event)] = JSON.unparse({ callback: callback, opts: options })
+      @callbacks[callback_key_for(event)] = JSON.generate({ callback: callback, opts: options })
     end
 
     # Adds jobs to the batch.
